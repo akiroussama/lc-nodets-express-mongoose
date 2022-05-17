@@ -1,8 +1,95 @@
+
 import express from 'express';
 import mongoose from 'mongoose';
+import WilderModel from './models/Wilder';
 import WildersController from './controllers/Wilders';
 import cors from 'cors';
+import {startApolloServer} from "./initServer";
 
+const { ApolloServer, gql } = require('apollo-server-express');
+
+const resolvers = {
+    Query: {
+        getAllWilders: async () =>  await WilderModel.find({})
+    },
+    Mutation: {
+        createWilder: async (_:any, data:any) => {
+            await WilderModel.init();
+            const newWilder = new WilderModel( data);
+            newWilder._id = new mongoose.Types.ObjectId();
+            // generate a dynamic id
+            return await newWilder.save();
+        },  
+        deleteWilder: async (_:any, {name}:any) => {
+            const wilder = await WilderModel.findOne({ name});
+            console.log(wilder);
+            if (wilder) {
+                await wilder.remove();
+            }
+            return wilder;
+        },
+        updateWilder: async (_:any, data:any) => {
+            await WilderModel.init();
+            console.log(data);
+            const wilder = await WilderModel.findOne({name: data.name});
+            if (wilder) {
+                Object.assign(wilder, data);
+                await wilder.save();
+                return wilder;
+            } else {
+                return null;
+            }
+        },
+    }
+};
+const typeDefs = gql`
+  # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
+  type Skill {
+    votes: Int
+    title: String
+  }
+  type Book {
+  title: String
+  author: String
+}
+
+
+  # This "Wilder" type defines the queryable fields for every wilder in our data source.
+  type Wilder {
+    name: String
+    city: String
+    skills: [Skill]
+  }
+
+  type Query {
+    getAllWilders: [Wilder]
+  }
+  input InputSkill {
+     votes: Int
+    title: String
+  }
+  input InputWilder {
+    name: String!
+    city: String!
+    skills: [InputSkill]
+  }
+  type Mutation {
+    createWilder(name: String, city: String, skills: [InputSkill] ): Wilder
+    updateWilder(name: String, city: String, skills: [InputSkill] ): Wilder
+    deleteWilder(name: String!): Wilder
+  }
+
+   
+`;
+//   type mutation {
+//     CreateWilder($city: String!, $name: String!, $id: Int!){
+//      createWilder(city: $city, name: $name, id: $id){
+//       id
+//       name
+//       city
+//     }
+//   }
+//   }
 const app = express();
 
 // On va typer:
@@ -30,32 +117,7 @@ mongoose.connect('mongodb://localhost:27017/wildapi2', {
         console.log("Not connected");
     });
 
-app.use(express.json());
-app.use(cors());
-
-// app.HTTP_VERB(endpoint, handler)
-// GET, POST, PUT, DELETE
-// mon app - quand je veux créer - sur mon API, mes wilders
-// Routes REST: Verbe HTTP → action. Endpoint → aucune action. 
-app.get('/api/wilders/', execAsyncHandler(WildersController.findAll));
-app.get('/api/wilders/:id', execAsyncHandler(WildersController.findOne));
-app.post('/api/wilders', execAsyncHandler(WildersController.create));
-app.put('/api/wilders/:id', execAsyncHandler(WildersController.update));
-app.patch('/api/wilders/:id', execAsyncHandler(WildersController.partialUpdate));
-app.delete('/api/wilders/:id', execAsyncHandler(WildersController.delete));
-
-// Handle 500 error
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error(err);
-    res.status(500).json({ message: 'Error occured, sorry' });
-});
-
-// Handle 404 not found
-app.use((req: express.Request, res: express.Response, next: express.NextFunction): void => {
-    res.status(404).json({ message: 'Route not found' });
-});
-
-app.listen(4000, function () {
-    console.log("Server started on port 4000!");
-});
+     startApolloServer(typeDefs, resolvers).then(() => {
+        console.log("Server started at http://localhost:4000/graphql 🚀🚀🚀");
+    });
 
