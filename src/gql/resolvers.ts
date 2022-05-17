@@ -1,6 +1,6 @@
 import WilderModel from '../models/Wilder';
 
-const resolvers = {
+export const resolvers = {
     Query: {
         getAllWilders: async () =>  await WilderModel.find({})
     },
